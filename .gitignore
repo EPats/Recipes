@@ -244,3 +244,8 @@ fabric.properties
 
 # Anything in recipe_images folder
 recipe_images/
+
+app.log
+recipes.json
+.env
+.env.test
