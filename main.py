@@ -1,64 +1,86 @@
+import time
 import os
-import re
 import json
-import socket
+from datetime import datetime, timedelta
 
-import requests
-from bs4 import BeautifulSoup
-from dotenv import load_dotenv
-import consts
-import logger
-from parsers import base_parser
-import imaplib
-import email
-from email.header import decode_header
-from functools import partial
+import email_handler
+import recipe_handler
+from logger import logger
 
 
-def get_base_url(url):
-    base = re.sub(r'(https?://)?(www\.)?', '', url)
-    base = base.split('/')[0]
-    return base
-
-
-def load_existing_recipes(filepath):
+def load_existing_recipes() -> list[dict]:
+    filepath: str = os.getenv('OUTPUT_FILE')
     if os.path.exists(filepath):
         with open(filepath, 'r', encoding='utf-8') as file:
             return json.load(file)
     return []
 
 
-def save_recipes(filepath, recipes):
+def save_recipes(recipes: list[dict]) -> None:
+    filepath: str = os.getenv('OUTPUT_FILE')
     with open(filepath, 'w', encoding='utf-8') as file:
         json.dump(recipes, file, indent=4)
 
 
-def process_urls(urls, all_recipes, output_file_path):
-    for url in urls:
-        base_url = get_base_url(url)
-        parser_class = consts.parser_classes.get(base_url, base_parser.BaseParser)
-        parser = parser_class(url)
-        recipes = parser.get_recipes()
-        for recipe in recipes:
-            if recipe not in all_recipes:
-                all_recipes.append(recipe)
+def check_for_new_urls(url_queue: list[str]) -> bool:
+    logger.info('Checking for new URLs in emails')
+    email_urls: list[str] = email_handler.get_urls_from_emails()
+    url_queue.extend(email_urls)
+    email_handler.close_mail_connection()
+    return len(email_urls) > 0
 
-    save_recipes(output_file_path, all_recipes)
+
+def process_urls(url_queue: list[str], all_recipes: list[dict], unique_recipe_identifiers: set[str]) -> None:
+    while url_queue:
+        logger.info(f'URL Queue size: {len(url_queue)}')
+        url: str = url_queue.pop(0)
+        logger.info(f'Processing URL: {url}')
+        recipes = recipe_handler.get_recipes_from_url(url)
+
+        if recipes:
+            logger.info(f'Found {len(recipes)} recipes at {url}')
+        else:
+            logger.warning(f'No recipes found at {url}')
+
+        duplicate_recipes: list[dict] = []
+        new_recipes: list[dict] = []
+        recipe: dict
+        for recipe in recipes:
+            if recipe['unique_id'] in unique_recipe_identifiers:
+                duplicate_recipes.append(recipe)
+            else:
+                unique_recipe_identifiers.add(recipe['unique_id'])
+                new_recipes.append(recipe)
+
+        if len(duplicate_recipes) > 0:
+            logger.warning(f'Found {len(duplicate_recipes)} duplicate recipes at {url}.' +
+                        f'Duplicates are not included in the output.')
+
+        all_recipes.extend(new_recipes)
+        save_recipes(all_recipes)
+        time.sleep(1)  # Wait for 1 second before processing the next URL
 
 
 def main():
-    # Main script execution
-    urls = [
-        # 'https://www.theguardian.com/food/article/2024/jun/18/thomasina-miers-recipes-for-summer-salads',
-        # 'https://www.theguardian.com/food/article/2024/jun/30/nigel-slaters-recipes-for-carrot-and-cucumber-pickle-and-gooseberry-flapjacks',
-        'https://www.recipetineats.com/crispy-slow-roasted-pork-belly/'
-    ]
+    all_recipes: list[dict] = load_existing_recipes()
+    unique_recipe_identifiers: set[str] = {recipe['unique_id'] for recipe in all_recipes}
+    url_queue: list[str] = []
+    wait_time = int(os.getenv('EMAIL_CHECK_INTERVAL'))
+    min_wait_time = int(os.getenv('MIN_EMAIL_INTERVAL'))
+    max_wait_time = int(os.getenv('MAX_EMAIL_INTERVAL'))
 
-    output_file_path = consts.output_file_path
-    existing_recipes = load_existing_recipes(output_file_path)
-    all_recipes = existing_recipes.copy()
+    while True:
+        result = check_for_new_urls(url_queue)
+        if result:
+            process_urls(url_queue, all_recipes, unique_recipe_identifiers)
+            wait_time = max(wait_time // 2, min_wait_time)
+        else:
+            wait_time = min(wait_time * 2, max_wait_time)
 
-    process_urls(urls, all_recipes, output_file_path)
+        next_check_time = datetime.now() + timedelta(seconds=wait_time)
+        logger.info(f'Sleeping for {wait_time} seconds. Next scheduled check: {next_check_time:%Y-%m-%d %H:%M}')
+        time.sleep(wait_time)
+
 
 if __name__ == '__main__':
-    load_dotenv()
+    main()
