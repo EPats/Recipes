@@ -1,8 +1,9 @@
 import atexit
 from email import message, message_from_bytes
+from email.header import decode_header
 import imaplib
-import json
 import os
+import re
 
 from logger import logger
 
@@ -24,7 +25,7 @@ def close_mail_connection() -> None:
         mail = None
         logger.info('Mail connection closed')
     else:
-        logger.warn('No mail connection to close')
+        logger.warning('No mail connection to close')
 
 
 def assign_mail_instance() -> None:
@@ -62,17 +63,28 @@ def get_body(email_data: message.Message) -> str:
     return ''
 
 
-def get_email_details(email_ids: list[bytes]) -> list[tuple[bytes, message.Message]]:
-    emails: list[tuple[bytes, message.Message]] = []
+def get_email_details(email_ids: list[bytes]) -> list[tuple[bytes, str, str]]:
+    emails: list[tuple[bytes, str, str]] = []
     for email_id in email_ids:
-        read_style = '(BODY[])' if os.getenv('MARK_AS_READ') == 'true' else '(BODY.PEEK[])'
-        status, msg_data = mail.fetch(email_id.decode('utf-8'), read_style)
+        read_style: str = '(BODY[])' if os.getenv('MARK_AS_READ') == 'true' else '(BODY.PEEK[])'
+        status: str
+        msg_data: list[tuple[bytes, bytes]]
+        subject: str
+        encoding: str
 
+        status, msg_data = mail.fetch(email_id.decode('utf-8'), read_style)
         if status != 'OK':
-            logger.warn('Failed to fetch email ID: {}'.format(email_id))
+            logger.warning('Failed to fetch email ID: {}'.format(email_id))
             continue
 
-        emails.append((email_id, message_from_bytes(msg_data[0][1])))
+        msg = message_from_bytes(msg_data[0][1])
+        subject, encoding = decode_header(msg["Subject"])[0]
+        if isinstance(subject, bytes):
+            subject = subject.decode(encoding if encoding else "utf-8")
+
+        body: str = get_body(msg)
+
+        emails.append((email_id, subject, body))
     return emails
 
 
@@ -80,7 +92,7 @@ def get_emails(lookup_string: str) -> tuple[str, list[bytes]]:
     return mail.search(None, lookup_string)
 
 
-def read_emails(lookup_string: str) -> list[tuple[bytes, message.Message]] | None:
+def read_emails(lookup_string: str) -> list[tuple[bytes, str, str]] | None:
     if not mail:
         logger.error('No mail connection')
         return None
@@ -90,7 +102,7 @@ def read_emails(lookup_string: str) -> list[tuple[bytes, message.Message]] | Non
     messages: list[bytes]
     status, messages = get_emails(lookup_string)
     if status != 'OK':
-        logger.warn('No messages found!')
+        logger.warning('No messages found!')
         return None
 
     # Get the list of email IDs
@@ -98,33 +110,67 @@ def read_emails(lookup_string: str) -> list[tuple[bytes, message.Message]] | Non
     return get_email_details(email_ids)
 
 
-def get_recipe_urls(emails: list[tuple[bytes, message.Message]]) -> list[str]:
-    return [url.strip() for email_id, email_data in emails for url in get_body(email_data).split('\n') if url.strip()]
-
-
-def get_whitelisted_emails_query() -> str:
-    whitelisted_emails: list[str] = os.getenv('EMAILS_WHITELIST').split(',')
-    whitelisted_emails.append(os.getenv('EMAIL_USER'))
-    partial_queries: list[str] = [f'FROM "{email_address}"' for email_address
-                                  in whitelisted_emails if email_address.strip()]
+def get_compound_query(query_type: str, query_elements: list[str]) -> str:
+    partial_queries: list[str] = [f'{query_type} "{query_element}"' for query_element
+                                  in query_elements if query_element.strip()]
     if not partial_queries:
         return ''
     elif len(partial_queries) == 1:
         return partial_queries[0]
 
     conditions: list[str] = [f'({partial_query})' for partial_query in partial_queries]
-    final_email: str = conditions.pop(-1)
-    conditions[-1] = f'{conditions[-1]} {final_email}'
+    final_query: str = conditions.pop(-1)
+    conditions[-1] = f'{conditions[-1]} {final_query}'
     return f'OR {" OR ".join(conditions)}'
 
 
-def get_urls_from_emails() -> list[str]:
+def get_whitelisted_query() -> str:
+    whitelisted_emails: list[str] = os.getenv('EMAILS_WHITELIST').split(',')
+    whitelisted_emails.append(os.getenv('EMAIL_USER'))
+    return get_compound_query('FROM', whitelisted_emails)
+
+
+def get_subjects_list() -> list[str]:
+    return os.getenv('EMAIL_SUBJECTS').split(',')
+
+
+def get_subjects_query() -> str:
+    subjects: list[str] = get_subjects_list()
+    return get_compound_query('SUBJECT', subjects)
+
+
+def create_subject_queues() -> dict[str, list[str]]:
+    emails_by_subject: dict[str, list[str]] = {subject: [] for subject in get_subjects_list()}
+    emails_by_subject['Other'] = []
+    return emails_by_subject
+
+
+def get_emails_by_subject() -> dict[str, list[str]]:
     assign_mail_instance()
-    recipe_emails_filter: str = f'(UNSEEN SUBJECT "Recipes" {get_whitelisted_emails_query()})'
-    recipe_emails: list[tuple[bytes, message.Message]] | None = read_emails(recipe_emails_filter)
-    recipe_urls: list[str] = get_recipe_urls(recipe_emails)
-    if recipe_urls:
-        logger.info(f'Loaded {len(recipe_urls)} recipe URLs:\n{json.dumps(recipe_urls, indent=4)}')
-    else:
-        logger.info('No recipe URLs found in emails')
-    return get_recipe_urls(recipe_emails)
+    emails_filter: str = f'(UNSEEN {get_subjects_query()} {get_whitelisted_query()})'
+    emails: list[tuple[bytes, str, str]] | None = read_emails(emails_filter) or []
+
+    subjects: list[str] = get_subjects_list()
+    subject: str
+
+    emails_by_subject: dict[str, list[str]] = create_subject_queues()
+
+    for email_obj in emails:
+        email_id, subject, body = email_obj
+        subject = subject if subject in subjects else 'Other'
+        emails_by_subject[subject].append(body)
+
+    return emails_by_subject
+
+
+def get_urls(email_bodies: list[str]) -> list[str]:
+    urls: list[str] = []
+    for email_body in email_bodies:
+        urls.extend(re.findall(r'(https?://\S+)', email_body))
+    return urls
+
+
+def get_base_url(url: str) -> str:
+    base: str = re.sub(r'(https?://)?(www\.)?', '', url)
+    base = base.split('/')[0]
+    return base

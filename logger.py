@@ -1,9 +1,8 @@
 import logging
 import os
-from dotenv import load_dotenv
 
+logger: logging.Logger
 
-load_dotenv()
 
 class ConsoleHandler(logging.StreamHandler):
     # https://en.wikipedia.org/wiki/ANSI_escape_code#Colors
@@ -29,31 +28,39 @@ class ConsoleHandler(logging.StreamHandler):
 
         print(f"{csi}{color}m{record.msg}{csi}m")
 
-# Create a custom logger
-logger: logging.Logger = logging.getLogger('main_logger')
 
-logging_level_str = os.getenv('LOGGING_LEVEL', 'INFO')
-logging_level = logging.getLevelNamesMapping().get(logging_level_str.upper())
-console_logging_level_str = os.getenv('CONSOLE_LOGGING_LEVEL', logging_level_str)
-console_logging_level = logging.getLevelNamesMapping().get(console_logging_level_str.upper())
+def create_logger() -> logging.Logger:
+    new_logger = logging.getLogger('main_logger')
 
-logger.setLevel(logging_level)
+    logging_level_str = os.getenv('LOGGING_LEVEL', 'INFO')
+    logging_level = logging.getLevelNamesMapping().get(logging_level_str.upper())
+    console_logging_level_str = os.getenv('CONSOLE_LOGGING_LEVEL', logging_level_str)
+    console_logging_level = logging.getLevelNamesMapping().get(console_logging_level_str.upper())
 
-# Create handlers
-console_handler: logging.StreamHandler = ConsoleHandler()
-file_handler: logging.FileHandler = logging.FileHandler(os.getenv('LOG_FILE', 'app.log'))
+    new_logger.setLevel(logging_level)
 
-# Set level for handlers
-console_handler.setLevel(console_logging_level)
-file_handler.setLevel(logging_level)
+    # Create handlers
+    console_handler: logging.StreamHandler = ConsoleHandler()
+    file_handler: logging.FileHandler = logging.FileHandler(os.getenv('LOG_FILE', 'app.log'))
 
-# Create formatters and add them to handlers
-default_format_string: str = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-formatter: logging.Formatter = logging.Formatter(default_format_string)
+    # Set level for handlers
+    console_handler.setLevel(console_logging_level)
+    file_handler.setLevel(logging_level)
 
-console_handler.setFormatter(formatter)
-file_handler.setFormatter(formatter)
+    # Create formatters and add them to handlers
+    default_format_string: str = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    formatter: logging.Formatter = logging.Formatter(default_format_string)
 
-# Add handlers to the logger
-logger.addHandler(console_handler)
-logger.addHandler(file_handler)
+    console_handler.setFormatter(formatter)
+    file_handler.setFormatter(formatter)
+
+    # Add handlers to the logger
+    new_logger.addHandler(console_handler)
+    new_logger.addHandler(file_handler)
+
+    return new_logger
+
+
+def init_logger() -> None:
+    global logger
+    logger = create_logger()

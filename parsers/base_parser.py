@@ -65,7 +65,6 @@ class BaseParser:
                 image_url: str = recipe.pop('image_url')
                 recipe['image'] = self.download_image(image_url, recipe['recipe_name'], recipe['source'])
 
-            recipe['unique_id'] = recipe['url'] + recipe['recipe_name']
             recipes.append(recipe)
         return recipes
 
