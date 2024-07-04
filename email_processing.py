@@ -12,11 +12,11 @@ mail: imaplib.IMAP4_SSL | None = None
 
 @atexit.register
 def close_mail_connection():
-    print('Closing mail connection')
+    logger.logger.info('Closing mail connection')
     if mail:
         mail.close()
         mail.logout()
-        print('Mail connection closed')
+        logger.logger.info('Mail connection closed')
 
 
 def assign_mail_instance():
@@ -69,7 +69,7 @@ def get_email_details(email_ids):
         status, msg_data = mail.fetch(email_id, '(BODY.PEEK[])')
 
         if status != 'OK':
-            print('Failed to fetch email ID: {}'.format(email_id))
+            logger.logger.warn('Failed to fetch email ID: {}'.format(email_id))
             continue
 
         emails.append((email_id, email.message_from_bytes(msg_data[0][1])))
@@ -88,7 +88,7 @@ def read_emails(lookup_string):
     # Search for unread emails
     status, messages = get_emails(lookup_string)
     if status != 'OK':
-        print('No messages found!')
+        logger.logger.warn('No messages found!')
         return
 
     # Get the list of email IDs
@@ -117,10 +117,8 @@ def main():
     assign_mail_instance()
 
     recipe_emails_filter = f'(UNSEEN SUBJECT "Recipes" {get_whitelisted_emails_query()})'
-    print(f'{recipe_emails_filter=}')
     recipe_emails = read_emails(recipe_emails_filter)
     urls = get_recipe_urls(recipe_emails)
-    print(urls)
 
 
 if __name__ == '__main__':

@@ -31,7 +31,6 @@ def load_existing_recipes(filepath):
 def save_recipes(filepath, recipes):
     with open(filepath, 'w', encoding='utf-8') as file:
         json.dump(recipes, file, indent=4)
-    print(f"Recipes data has been saved to {filepath}")
 
 
 def process_urls(urls, all_recipes, output_file_path):
