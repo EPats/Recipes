@@ -2,7 +2,7 @@ import json
 import os
 import requests
 from bs4 import BeautifulSoup
-from logger import logger
+from logger import get_logger
 
 
 def get_page(url: str) -> BeautifulSoup:
@@ -90,11 +90,11 @@ class BaseParser:
                         file.write(chunk)
                 return f'{source}/{image_name}'
         except requests.exceptions.RequestException as e:
-            logger.error(f'HTTP error occurred while downloading the image at {url}: {e}')
+            get_logger().error(f'HTTP error occurred while downloading the image at {url}: {e}')
         except OSError as e:
-            logger.error(f'File system error occurred downloading the image at {url}: {e}')
+            get_logger().error(f'File system error occurred downloading the image at {url}: {e}')
         except Exception as e:
-            logger.error(f'An unexpected error occurred downloading the image at {url}: {e}')
+            get_logger().error(f'An unexpected error occurred downloading the image at {url}: {e}')
         return None
 
     def get_base_data(self, script_tags: list[dict]) -> dict:

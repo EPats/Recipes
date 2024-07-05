@@ -1,7 +1,8 @@
 import logging
 import os
 
-logger: logging.Logger
+
+logger: logging.Logger | None = None
 
 
 class ConsoleHandler(logging.StreamHandler):
@@ -64,3 +65,10 @@ def create_logger() -> logging.Logger:
 def init_logger() -> None:
     global logger
     logger = create_logger()
+
+
+def get_logger() -> logging.Logger:
+    global logger
+    if not logger:
+        init_logger()
+    return logger
