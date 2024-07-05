@@ -5,7 +5,7 @@ import imaplib
 import os
 import re
 
-from logger import logger
+from logger import get_logger
 
 
 mail: imaplib.IMAP4_SSL | None = None
@@ -17,15 +17,15 @@ def exit_handler() -> None:
 
 
 def close_mail_connection() -> None:
-    logger.info('Closing mail connection')
+    get_logger().info('Closing mail connection')
     global mail
     if mail:
         mail.close()
         mail.logout()
         mail = None
-        logger.info('Mail connection closed')
+        get_logger().info('Mail connection closed')
     else:
-        logger.warning('No mail connection to close')
+        get_logger().warning('No mail connection to close')
 
 
 def assign_mail_instance() -> None:
@@ -41,7 +41,7 @@ def connect_to_imap_server() -> imaplib.IMAP4_SSL:
         mail_instance.select('inbox')  # Connect to the inbox.
         return mail_instance
     except imaplib.IMAP4.error as e:
-        logger.error('Connection failed: {}'.format(e))
+        get_logger().error('Connection failed: {}'.format(e))
         raise
 
 
@@ -74,7 +74,7 @@ def get_email_details(email_ids: list[bytes]) -> list[tuple[bytes, str, str]]:
 
         status, msg_data = mail.fetch(email_id.decode('utf-8'), read_style)
         if status != 'OK':
-            logger.warning('Failed to fetch email ID: {}'.format(email_id))
+            get_logger().warning('Failed to fetch email ID: {}'.format(email_id))
             continue
 
         msg = message_from_bytes(msg_data[0][1])
@@ -94,7 +94,7 @@ def get_emails(lookup_string: str) -> tuple[str, list[bytes]]:
 
 def read_emails(lookup_string: str) -> list[tuple[bytes, str, str]] | None:
     if not mail:
-        logger.error('No mail connection')
+        get_logger().error('No mail connection')
         return None
 
     # Search for unread emails
@@ -102,7 +102,7 @@ def read_emails(lookup_string: str) -> list[tuple[bytes, str, str]] | None:
     messages: list[bytes]
     status, messages = get_emails(lookup_string)
     if status != 'OK':
-        logger.warning('No messages found!')
+        get_logger().warning('No messages found!')
         return None
 
     # Get the list of email IDs

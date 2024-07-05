@@ -1,4 +1,3 @@
-import re
 import os
 import json
 import time
@@ -8,7 +7,7 @@ from typing import Type
 import email_handler
 from parsers.base_parser import BaseParser
 from parsers.recipetineats_parser import RecipeTinEatsParser
-from logger import logger
+from logger import get_logger
 
 
 parser_classes: dict[str, Type[BaseParser]] = {
@@ -50,13 +49,13 @@ def process_recipe_emails(email_bodies: list[str]) -> None:
     unique_recipe_identifiers: set[str] = {get_recipe_unique_id(recipe) for recipe in all_recipes}
 
     urls: list[str] = email_handler.get_urls(email_bodies)
-    logger.info(f'Recipe url queue size: {len(urls)}')
+    get_logger().info(f'Recipe url queue size: {len(urls)}')
     for url in urls:
         recipes: list[dict] = get_recipes_from_url(url)
         if recipes:
-            logger.info(f'Found {len(recipes)} recipes at {url}')
+            get_logger().info(f'Found {len(recipes)} recipes at {url}')
         else:
-            logger.warning(f'No recipes found at {url}')
+            get_logger().warning(f'No recipes found at {url}')
             continue
 
         duplicate_recipes: list[dict] = []
@@ -71,7 +70,7 @@ def process_recipe_emails(email_bodies: list[str]) -> None:
                 new_recipes.append(recipe)
 
         if len(duplicate_recipes) > 0:
-            logger.warning(f'Found {len(duplicate_recipes)} duplicate recipes at {url}.' +
+            get_logger().warning(f'Found {len(duplicate_recipes)} duplicate recipes at {url}.' +
                         f'Duplicates are not included in the output.')
 
         all_recipes.extend(new_recipes)

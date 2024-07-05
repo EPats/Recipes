@@ -1,3 +1,4 @@
+import logging
 import time
 import os
 import json
@@ -8,11 +9,11 @@ from dotenv import load_dotenv
 import arr_handler
 import email_handler
 import recipe_handler
-from logger import init_logger, logger
+from logger import init_logger, get_logger
 
 
 def check_for_new_emails(queues: dict) -> bool:
-    logger.info('Checking for new emails')
+    get_logger().info('Checking for new emails')
     emails_by_subject: dict[str, list[str]] = email_handler.get_emails_by_subject()
     total: int = 0
     for subject in emails_by_subject:
@@ -20,9 +21,9 @@ def check_for_new_emails(queues: dict) -> bool:
         total += len(emails)
         if emails:
             queues.get(subject, []).extend(emails)
-            logger.info(f'Loaded {len(emails)} emails for "{subject}"')
+            get_logger().info(f'Loaded {len(emails)} emails for "{subject}"')
         else:
-            logger.info(f'No emails found for "{subject}"')
+            get_logger().info(f'No emails found for "{subject}"')
     return total > 0
 
 
@@ -39,7 +40,7 @@ def process_emails(queues: dict[str, list[str]]) -> None:
             case 'Media Requests':
                 arr_handler.process_media_request_emails(emails)
             case _:
-                logger.warning(f'No processing logic for emails with subject: {subject}' +
+                get_logger().warning(f'No processing logic for emails with subject: {subject}' +
                                f'\nEmails: {json.dumps(emails, indent=4)}')
 
 
@@ -61,7 +62,7 @@ def main():
             wait_time = min(wait_time * 2, max_wait_time)
 
         next_check_time = datetime.now() + timedelta(seconds=wait_time)
-        logger.info(f'Sleeping for {wait_time} seconds. Next scheduled check: {next_check_time:%Y-%m-%d %H:%M}')
+        get_logger().info(f'Sleeping for {wait_time} seconds. Next scheduled check: {next_check_time:%Y-%m-%d %H:%M}')
         time.sleep(wait_time)
 
 
