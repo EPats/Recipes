@@ -71,6 +71,51 @@ def setup() -> None:
     init_logger()
 
 
+
+def testing():
+    txt = '''https://www.independent.co.uk/life-style/food-and-drink/tom-kerridge-recipes-pub-kitchen-cookbook-b2423595.html
+https://www.kingarthurbaking.com/recipes/cakey-brownies-recipe
+
+https://www.theguardian.com/food/2023/oct/17/nigel-slaters-recipe-for-mushroom-ragout
+https://www.theguardian.com/food/2023/oct/21/tomato-souffle-brown-butter-sole-yotam-ottolenghi-french-recipes
+https://www.theguardian.com/food/2023/oct/28/strudel-meat-free-carbonara-and-shrimp-yotam-ottolenghis-recipes-inspired-by-the-movies
+https://www.theguardian.com/food/2023/nov/01/how-to-make-timballo-recipe-felicity-cloake-masterclass
+https://www.theguardian.com/food/2023/nov/11/middle-eastern-influenced-irish-recipes-yotam-ottolenghi-barmbrack-farls-irish-stew
+https://www.theguardian.com/food/2023/dec/02/yotam-ottolenghi-vegetarian-christmas-recipes-rice-pie-sticky-sprouts-and-yoghurty-beans
+https://www.recipetineats.com/green-beans-with-a-mountain-of-panko/
+https://www.theguardian.com/food/2023/dec/09/vegan-giardiniera-italian-pickles-recipe-meera-sodha
+https://www.theguardian.com/food/2023/dec/06/best-summer-recipes-salads-stuffed-eggplants-chicken-salad-skewers-pasta-yotam-ottolenghi
+https://www.theguardian.com/food/2023/dec/30/baked-cheese-glazed-sausages-veggie-dip-easy-recipes-new-year-yotam-ottolenghi
+https://www.theguardian.com/food/2024/jan/05/plant-based-three-ingredient-pure-chocolate-mousse-recipe-philip-khoury
+https://www.telegraph.co.uk/recipes/0/smoked-trout-sea-bass-crudo-salmon-roe-diana-henry-recipe/
+https://www.theguardian.com/food/2024/jan/22/quick-easy-mushroom-leek-spinach-tagliatelle-recipe-rukmini-iyer
+https://www.theguardian.com/food/2024/jan/20/roast-cabbage-chana-dal-swede-carrot-bulgur-preserved-lemon-lentils-butternut-squash-feta-yoghurt-yotam-ottolenghi-winter-vegetable-recipes
+https://www.theguardian.com/food/2024/jan/29/nigel-slaters-prawn-toast-recipe
+https://www.theguardian.com/food/2024/jan/27/30-minute-meal-yotam-ottolenghi-recipes-thai-deep-fried-omelette-tofu-broccoli-spicy-seaweed-sea-bass-spaghetti
+https://www.theguardian.com/food/2024/jan/29/the-20-best-recipes-to-put-on-toast-broken-beans-creamy-mushrooms-truffled-leeks-and-more
+
+https://www.theguardian.com/food/2024/mar/23/how-to-turn-stale-bread-leek-tops-and-aquafaba-into-brilliant-vegetarian-sausages-recipe-zero-waste-cooking
+https://www.theguardian.com/food/2024/mar/17/nigel-slaters-recipes-for-potatoes-with-mussels-and-dill-and-filled-with-cauliflower-cheese
+https://www.theguardian.com/food/2024/mar/30/yotam-ottolenghi-meatball-recipes-pork-peanut-gravy-ricotta-lamb-polpette
+https://www.google.com/url?q=https://www.thetimes.co.uk/article/three-recipes-for-a-middle-east-feast-f633b98t9&usg=AOvVaw08xKXMcWca8R6QwdJVhmlZ&cs=1&hl=en-GB
+https://www.houseandgarden.co.uk/recipe/italian-cauliflower-cheese-with-mushrooms
+https://www.eatingwell.com/crispy-salmon-bites-with-creamy-sun-dried-tomato-dipping-sauce-8663055
+https://www.theguardian.com/food/article/2024/jun/09/nigel-slaters-recipes-for-grilled-potatoes-with-curry-yoghurt-sauce-and-pea-croquettes
+
+https://www.theguardian.com/food/article/2024/may/18/ask-ottolenghi-easy-sauces-to-perk-up-midweek-meals
+https://www.theguardian.com/food/article/2024/may/15/balkan-favourites-recipes-crunchy-potatoes-fried-pepper-cream-gibanitsa-egg-cheese-filo-pie-spasia-dinkovski
+
+
+https://www.theguardian.com/food/article/2024/may/11/yotam-ottolenghi-five-ingredient-or-thereabouts-recipes-chicken-rice-spring-onion-broad-beans
+
+https://www.theguardian.com/food/2024/apr/10/how-to-make-thai-green-curry-recipe-felicity-cloake'''
+    urls = email_handler.get_urls([txt])
+    queues = {'Recipes': urls}
+    process_emails(queues)
+
+
+
 if __name__ == '__main__':
     setup()
-    main()
+    # main()
+    testing()

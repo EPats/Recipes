@@ -7,12 +7,13 @@ from typing import Type
 import email_handler
 from parsers.base_parser import BaseParser
 from parsers.recipetineats_parser import RecipeTinEatsParser
+from parsers.guardian_parser import GuardianParser
 from logger import get_logger
 
 
 parser_classes: dict[str, Type[BaseParser]] = {
-    'recipetineats.com': RecipeTinEatsParser
-    # 'theguardian.com': guardian_parser.GuardianParser
+    'recipetineats.com': RecipeTinEatsParser,
+    'theguardian.com': GuardianParser
 }
 
 

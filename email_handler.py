@@ -165,8 +165,13 @@ def get_emails_by_subject() -> dict[str, list[str]]:
 
 def get_urls(email_bodies: list[str]) -> list[str]:
     urls: list[str] = []
+    url_pattern = re.compile(r'((?:https?://|www\.)\S+)')
+    redirected_url_pattern = re.compile(r'url\?q=((?:https?://|www\.)[^&]+)')
     for email_body in email_bodies:
-        urls.extend(re.findall(r'(https?://\S+)', email_body))
+        new_urls = [redirected_url_pattern.findall(url)[0]
+                    if 'url?q=' in url else url
+                    for url in url_pattern.findall(email_body)]
+        urls.extend(new_urls)
     return urls
 
 
