@@ -48,6 +48,7 @@ def get_media_components(url: str) -> tuple[str, str, str]:
     return service, media_id, id_site
 
 
+
 def add_to_service(service: str, media_id: str, id_site: str):
     service_address: str = os.getenv(f'{service.upper()}_ADDRESS')
     service_api_key: str = os.getenv(f'{service.upper()}_API_KEY')
