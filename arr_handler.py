@@ -1,8 +1,6 @@
 import json
 import time
-
 from bs4 import BeautifulSoup
-
 import email_handler
 from logger import get_logger
 import re
@@ -46,7 +44,6 @@ def get_media_components(url: str) -> tuple[str, str, str]:
         service = 'Sonarr'
         media_id = get_tvdb_series_id(url)
     return service, media_id, id_site
-
 
 
 def add_to_service(service: str, media_id: str, id_site: str):

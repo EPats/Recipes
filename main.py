@@ -108,7 +108,10 @@ https://www.theguardian.com/food/article/2024/may/15/balkan-favourites-recipes-c
 https://www.theguardian.com/food/article/2024/may/11/yotam-ottolenghi-five-ingredient-or-thereabouts-recipes-chicken-rice-spring-onion-broad-beans
 
 https://www.theguardian.com/food/2024/apr/10/how-to-make-thai-green-curry-recipe-felicity-cloake'''
+
     urls = email_handler.get_urls([txt])
+
+    # urls = ['https://www.theguardian.com/food/2023/dec/02/yotam-ottolenghi-vegetarian-christmas-recipes-rice-pie-sticky-sprouts-and-yoghurty-beans?CMP=share_btn_url']
     queues = {'Recipes': urls}
     process_emails(queues)
 

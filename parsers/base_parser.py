@@ -7,6 +7,9 @@ from logger import get_logger
 
 def get_page(url: str) -> BeautifulSoup:
     response: requests.Response = requests.get(url)
+    if response.status_code != 200:
+        get_logger().error(f'Error fetching page at {url}: {response.status_code}')
+        return BeautifulSoup('', 'html.parser')
     soup = BeautifulSoup(response.text, 'html.parser')
     return soup
 
@@ -19,21 +22,24 @@ class BaseParser:
     def get_default_source(self) -> str:
         return 'Default Source'
 
+    def has_soup_content(self) -> bool:
+        # Return true if self.soup isn't ''
+        return bool(self.soup.contents)
+
     def get_script_tags(self) -> list[BeautifulSoup]:
         return self.soup.find_all('script', type='application/ld+json')
 
     def get_script_jsons(self) -> list[dict]:
         script_tags: list[BeautifulSoup] = self.get_script_tags()
-        script_jsons_group: list[dict] = []
-        script_tag: BeautifulSoup
+        script_jsons: list[dict] = []
         for script_tag in script_tags:
             try:
-                data: dict | list = json.loads(script_tag.string)
-                script_jsons_group.append(data)
+                data = json.loads(script_tag.string)
+                script_jsons.append(data)
             except json.JSONDecodeError:
                 continue
 
-        return [json_obj for jsons in script_jsons_group for json_obj in jsons]
+        return script_jsons
 
     def get_page_data(self, script_jsons: list[dict | list]) -> dict:
         script_json: BeautifulSoup
@@ -76,9 +82,14 @@ class BaseParser:
             if response.status_code == 200:
                 if recipe_name:
                     image_ext: str = url.split('.')[-1]
+                    if '?' in image_ext:
+                        image_ext = image_ext.split('?')[0]
                     image_name: str = f'{recipe_name}.{image_ext}'
                 else:
                     image_name: str = url.split('/')[-1]
+
+                for char in ['?', ':', '/', '\\', '*', '"', '<', '>', '|']:
+                    image_name = image_name.replace(char, '')
 
                 partial_path = (os.getenv('IMAGES_DIR'))
                 path: str = os.path.join(partial_path, source.replace(' ', '_')) if source else partial_path
@@ -109,9 +120,16 @@ class BaseParser:
             'image_url': self.get_image_url(page_data)
         }
 
-    def add_recipe_details(self, recipe_data: dict, recipe) -> dict:
+    def add_recipe_details(self, recipe_data: dict, recipe: dict) -> dict:
         recipe['recipe_name'] = self.get_recipe_name(recipe_data)
-        recipe['author'] = self.get_recipe_author(recipe_data) or recipe['author']
+
+        recipe_author: str = self.get_recipe_author(recipe_data)
+        page_author: str = recipe['author']
+        all_authors: list[str] = [author for author in recipe_author.split(', ') if author]
+        all_authors.extend([author for author in page_author.split(', ') if author])
+        author = ', '.join(all_authors) if all_authors else ''
+
+        recipe['author'] = author
         recipe['description'] = self.get_recipe_description(recipe_data)
         recipe['image_url'] = self.get_recipe_image_url(recipe_data) or recipe['image_url']
         recipe['ingredients'] = self.get_recipe_ingredients(recipe_data)
@@ -127,7 +145,16 @@ class BaseParser:
         return page_data.get('publisher', {}).get('name', '') or self.get_default_source()
 
     def get_page_author(self, page_data: dict) -> str:
-        return page_data.get('author', [{}])[0].get('name', '')
+        author_details: list[dict] | dict | None = page_data.get('author')
+
+        if not author_details:
+            return ''
+
+        if isinstance(author_details, dict):
+            return author_details.get('name', '')
+
+        return ', '.join([author.get('name') for author in author_details if 'name' in author])
+
 
     def get_published_date(self, page_data: dict) -> str:
         return page_data.get('datePublished', '')
@@ -136,16 +163,32 @@ class BaseParser:
         return page_data.get('headline', '')
 
     def get_image_url(self, page_data: dict) -> str:
-        return page_data.get('image', ['https://unsplash.com/photos/grey-hlalway-IHtVbLRjTZU'])[-1]
+        image_obj = page_data.get('image', '')
+        if not image_obj:
+            return 'https://unsplash.com/photos/grey-hlalway-IHtVbLRjTZU'
+
+        if isinstance(image_obj, dict):
+            return image_obj.get('url', 'https://unsplash.com/photos/grey-hlalway-IHtVbLRjTZU')
+
+        return image_obj[-1]
+
 
     def get_recipe_name(self, recipe_data: dict) -> str:
         return recipe_data.get('name')
 
     def get_recipe_author(self, recipe_data: dict) -> str:
-        return recipe_data.get('author', {}).get('name', '')
+        author_details: list[dict] | dict | None = recipe_data.get('author')
 
-    def get_recipe_description(self, recipe_data: dict) -> str:
-        return recipe_data.get('description')
+        if not author_details:
+            return ''
+
+        if isinstance(author_details, dict):
+            return author_details.get('name', '')
+
+        return ', '.join([author.get('name') for author in author_details if 'name' in author])
+
+    def get_recipe_description(self, recipe_data: dict):
+        return recipe_data.get('description', '')
 
     def get_recipe_image_url(self, recipe_data: dict) -> str:
         return recipe_data.get('image', '')
@@ -167,3 +210,8 @@ class BaseParser:
 
     def get_recipe_time(self, recipe_data: dict) -> str:
         return recipe_data.get('totalTime')
+
+
+class GuardianParser(BaseParser):
+    def get_default_source(self) -> str:
+        return 'The Guardian'
