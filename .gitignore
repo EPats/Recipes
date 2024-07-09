@@ -243,7 +243,8 @@ fabric.properties
 .idea/caches/build_file_checksums.ser
 
 # Anything in recipe_images folder
-recipe_images/
+recipes/output/recipe_images/
+recipes/output/unprocessed
 
 app.log
 recipes.json

@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 import arr_handler
 import email_handler
-import recipe_handler
+from recipes import recipe_handler
 from logger import init_logger, get_logger
 
 
@@ -107,12 +107,28 @@ https://www.theguardian.com/food/article/2024/may/15/balkan-favourites-recipes-c
 
 https://www.theguardian.com/food/article/2024/may/11/yotam-ottolenghi-five-ingredient-or-thereabouts-recipes-chicken-rice-spring-onion-broad-beans
 
-https://www.theguardian.com/food/2024/apr/10/how-to-make-thai-green-curry-recipe-felicity-cloake'''
+https://www.theguardian.com/food/2024/apr/10/how-to-make-thai-green-curry-recipe-felicity-cloake
+https://www.loveandlemons.com/french-onion-soup/'''
 
     urls = email_handler.get_urls([txt])
 
     # urls = ['https://www.theguardian.com/food/2023/dec/02/yotam-ottolenghi-vegetarian-christmas-recipes-rice-pie-sticky-sprouts-and-yoghurty-beans?CMP=share_btn_url']
-    queues = {'Recipes': urls}
+    # urls = ['https://www.loveandlemons.com/french-onion-soup/']
+
+    txt2 = '''
+    https://www.houseandgarden.co.uk/recipe/italian-cauliflower-cheese-with-mushrooms
+https://www.bbcgoodfood.com/recipes/celery-sticks-blue-cheese-dip
+https://pinchofyum.com/roasted-broccoli-salad
+https://www.theguardian.com/food/article/2024/may/11/yotam-ottolenghi-five-ingredient-or-thereabouts-recipes-chicken-rice-spring-onion-broad-beans
+https://www.loveandlemons.com/french-onion-soup/
+https://www.jamieoliver.com/recipes/cheese-recipes/beautiful-baked-camembert/
+https://realfood.tesco.com/recipes/brazilian-style-beef-with-rice.html
+https://www.sainsburys.co.uk/gol-ui/recipes/chicken-and-prawn-paella
+https://www.waitrose.com/ecom/recipe/open-apple-tart
+'''
+    urls2 = email_handler.get_urls([txt2])
+
+    queues = {'Recipes': urls2}
     process_emails(queues)
 
 
