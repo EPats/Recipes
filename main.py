@@ -115,20 +115,7 @@ https://www.loveandlemons.com/french-onion-soup/'''
     # urls = ['https://www.theguardian.com/food/2023/dec/02/yotam-ottolenghi-vegetarian-christmas-recipes-rice-pie-sticky-sprouts-and-yoghurty-beans?CMP=share_btn_url']
     # urls = ['https://www.loveandlemons.com/french-onion-soup/']
 
-    txt2 = '''
-    https://www.houseandgarden.co.uk/recipe/italian-cauliflower-cheese-with-mushrooms
-https://www.bbcgoodfood.com/recipes/celery-sticks-blue-cheese-dip
-https://pinchofyum.com/roasted-broccoli-salad
-https://www.theguardian.com/food/article/2024/may/11/yotam-ottolenghi-five-ingredient-or-thereabouts-recipes-chicken-rice-spring-onion-broad-beans
-https://www.loveandlemons.com/french-onion-soup/
-https://www.jamieoliver.com/recipes/cheese-recipes/beautiful-baked-camembert/
-https://realfood.tesco.com/recipes/brazilian-style-beef-with-rice.html
-https://www.sainsburys.co.uk/gol-ui/recipes/chicken-and-prawn-paella
-https://www.waitrose.com/ecom/recipe/open-apple-tart
-'''
-    urls2 = email_handler.get_urls([txt2])
-
-    queues = {'Recipes': urls2}
+    queues = {'Recipes': urls}
     process_emails(queues)
 
 

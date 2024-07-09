@@ -16,7 +16,8 @@ known_sites: list[str] = [
     'houseandgarden.co.uk',
     'bbcgoodfood.com',
     'loveandlemons.com',
-    'realfood.tesco.com'
+    'realfood.tesco.com',
+    'sainsbury.co.uk'
 ]
 
 
@@ -39,6 +40,14 @@ def get_recipes_from_url(url: str) -> list[dict]:
     recipes: list[dict] = parser.get_recipes() or []
     if recipes:
         get_logger().info(f'Found {len(recipes)} recipes at {url}')
+        if isinstance(parser, parsers.UnknownParser):
+            base_url: str = web_requests.get_base_url(parser.url)
+            best_guess_name = parser.get_best_guess_name()
+            root_path = f'recipes/output/unprocessed/{base_url}'
+            os.makedirs(root_path, exist_ok=True)
+
+            with open(f'{root_path}/{best_guess_name}_recipes.json', 'w', encoding='utf-8') as file:
+                json.dump(recipes, file, indent=4)
     else:
         get_logger().warning(f'No recipes found at {url}')
         if not isinstance(parser, parsers.UnknownParser):

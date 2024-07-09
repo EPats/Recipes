@@ -297,14 +297,23 @@ class BaseParser:
     def _get_recipe_time(self, recipe_data: dict) -> str:
         return recipe_data.get('totalTime')
 
+    def get_best_guess_name(self) -> str:
+        url_last_part: str = self.url.split('/')[-2 if self.url[-1] == '/' else -1]
+        name_parts: list[str] = url_last_part.split('-')
+        index: int = min(6, len(name_parts))
+        best_guess_name: str = '-'.join(name_parts[:index])
+        return best_guess_name
+
     def dump_unprocessed_data(self):
         base_url: str = web_requests.get_base_url(self.url)
+        best_guess_name = self.get_best_guess_name()
+
         root_path = f'recipes/output/unprocessed/{base_url}'
         os.makedirs(root_path, exist_ok=True)
 
         json_objs: list[dict | list] = self._get_first_second_level_jsons()
         if not json_objs:
-            with open(f'{root_path}/{self.url}.html', 'w', encoding='utf-8') as file:
+            with open(f'{root_path}/{best_guess_name}.html', 'w', encoding='utf-8') as file:
                 file.write(self.soup.prettify())
             return
 
@@ -313,13 +322,13 @@ class BaseParser:
                                     if isinstance(json_obj.get('@type'), str)
                                     and json_obj.get('@type').lower() == 'recipe']
 
-        with open(f'{root_path}/script_jsons.json', 'w', encoding='utf-8') as file:
+        with open(f'{root_path}/{best_guess_name}_script_jsons.json', 'w', encoding='utf-8') as file:
             json.dump(json_objs, file, indent=4)
-        with open(f'{root_path}/base_data.json', 'w', encoding='utf-8') as file:
+        with open(f'{root_path}/{best_guess_name}_base_data.json', 'w', encoding='utf-8') as file:
             json.dump(base_data, file, indent=4)
-        with open(f'{root_path}/recipes_data.json', 'w', encoding='utf-8') as file:
+        with open(f'{root_path}/{best_guess_name}_recipes_data.json', 'w', encoding='utf-8') as file:
             json.dump(recipes_data, file, indent=4)
-        with open(f'{root_path}/{self.url}.html', 'w', encoding='utf-8') as file:
+        with open(f'{root_path}/{best_guess_name}.html', 'w', encoding='utf-8') as file:
             file.write(self.soup.prettify())
 
 
@@ -356,10 +365,10 @@ class WaitroseParser(BaseParser):
     def _get_recipe_image_url(self, recipe_data: dict, script_jsons: list[dict]) -> str:
         page_images = self.soup.find_all('img')
         image_element = next((img for img in page_images
-                          if img.get('alt','').lower() == recipe_data.get('name','').lower()),
-                         '')
+                              if img.get('alt','').lower() == recipe_data.get('name','').lower()),
+                             '')
         image_address = image_element.get('src', '')
-        if '.' in image_address:
+        if '.' in image_address.split('/')[-1]:
             image_address = f'{image_address.split('.')[0]}&wid=992.{image_address.split('.')[1]}'
         else:
             image_address = f'{image_address}&wid=992'
