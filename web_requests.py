@@ -1,40 +1,94 @@
-import random
 import time
-import requests
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+from selenium.common.exceptions import TimeoutException, WebDriverException
 from bs4 import BeautifulSoup
 from logger import get_logger
+import atexit
+import re
 
 
-def get_page(url: str, retries: int = 3, backoff_factor: float = 0.3) -> BeautifulSoup | None:
-    user_agents: list[str] = [
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Safari/605.1.15',
-        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    ]
+driver: webdriver.Chrome | None = None
+
+
+@atexit.register
+def exit_handler() -> None:
+    close_driver()
+
+
+def close_driver() -> None:
+    global driver
+    if driver:
+        get_logger().info('Closing Chrome driver')
+        driver.close()
+        driver.quit()
+        driver = None
+
+
+def get_base_url(url: str) -> str:
+    base: str = re.sub(r'(https?://)?(www\.)?', '', url)
+    base = base.split('/')[0]
+    return base
+
+
+def set_chrome_options() -> Options:
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+    chrome_options.add_argument("--start-maximized")
+    chrome_options.add_argument("--disable-extensions")
+    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    chrome_options.add_experimental_option('useAutomationExtension', False)
+    chrome_prefs = {
+        "profile.default_content_settings": {"images": 2},
+        "profile.managed_default_content_settings": {"images": 2}
+    }
+    chrome_options.add_experimental_option("prefs", chrome_prefs)
+    return chrome_options
+
+
+def get_page(url: str, retries: int = 3) -> BeautifulSoup | None:
+    global driver
+    driver = webdriver.Chrome(options=set_chrome_options())
+    driver.execute_cdp_cmd('Network.setUserAgentOverride', {
+        "userAgent": 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.53 Safari/537.36'})
 
     for attempt in range(retries):
         try:
-            headers: dict = {
-                'User-Agent': random.choice(user_agents),
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Referer': 'https://www.google.com/',
-                'DNT': '1',
-                'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1',
-            }
+            # Navigate to Google first
+            driver.get("https://www.google.com")
+            time.sleep(2)  # Wait for a bit
 
-            response: requests.Response = requests.get(url, headers=headers, timeout=15)
-            response.raise_for_status()
+            # Now navigate to the actual URL
+            driver.get(url)
+            time.sleep(5)  # Wait for the page to load
 
-            return BeautifulSoup(response.text, 'html.parser')
+            # Scroll down the page
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(2)  # Wait after scrolling
 
-        except requests.exceptions.RequestException as e:
-            get_logger().warning(f'Attempt {attempt + 1} failed for {url}: {str(e)}')
-            if attempt + 1 < retries:
-                time.sleep(backoff_factor * (2 ** attempt) + random.uniform(0, 1))
-            else:
+            WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+
+            page_source = driver.page_source
+            return BeautifulSoup(page_source, 'html.parser')
+
+        except TimeoutException:
+            get_logger().warning(f'Attempt {attempt + 1} timed out for {url}')
+        except WebDriverException as e:
+            get_logger().warning(f'WebDriver error on attempt {attempt + 1} for {url}: {str(e)}')
+        except Exception as e:
+            get_logger().warning(f'Unexpected error on attempt {attempt + 1} for {url}: {str(e)}')
+        finally:
+            if attempt + 1 == retries:
                 get_logger().error(f'Failed to fetch {url} after {retries} attempts')
+                close_driver()
                 return None
+            close_driver()
 
+    close_driver()
     return None

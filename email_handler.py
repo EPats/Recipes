@@ -174,8 +174,3 @@ def get_urls(email_bodies: list[str]) -> list[str]:
         urls.extend(new_urls)
     return urls
 
-
-def get_base_url(url: str) -> str:
-    base: str = re.sub(r'(https?://)?(www\.)?', '', url)
-    base = base.split('/')[0]
-    return base

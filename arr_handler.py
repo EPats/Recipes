@@ -2,6 +2,7 @@ import json
 import time
 from bs4 import BeautifulSoup
 import email_handler
+import web_requests
 from logger import get_logger
 import re
 import os
@@ -25,7 +26,7 @@ def get_tvdb_series_id(url: str) -> str:
 
 
 def get_media_components(url: str) -> tuple[str, str, str]:
-    base_url: str = email_handler.get_base_url(url)
+    base_url: str = web_requests.get_base_url(url)
     id_site: str = base_url.split('.')[0]
 
     service: str = ''

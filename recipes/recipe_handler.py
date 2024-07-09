@@ -5,23 +5,44 @@ import time
 from typing import Type
 
 import email_handler
+import web_requests
 from logger import get_logger
 
 import recipes.recipe_parsers as parsers
 
 
+known_sites: list[str] = [
+    'theguardian.com',
+    'houseandgarden.co.uk',
+    'bbcgoodfood.com',
+    'loveandlemons.com',
+    'realfood.tesco.com'
+]
+
+
 parser_classes: dict[str, Type[parsers.BaseParser]] = {
-    'pinchofyum.com': parsers.PinchOfYumParser
+    **{site: parsers.BaseParser for site in known_sites},
+    'pinchofyum.com': parsers.PinchOfYumParser,
+    'waitrose.com': parsers.WaitroseParser,
+    'jamieoliver.com': parsers.JamieOliverParser
+
 }
 
 
 def get_recipes_from_url(url: str) -> list[dict]:
-    base_url: str = email_handler.get_base_url(url)
-    parser_class: Type[parsers.BaseParser] = parser_classes.get(base_url, parsers.BaseParser)
+    base_url: str = web_requests.get_base_url(url)
+    parser_class: Type[parsers.BaseParser] = parser_classes.get(base_url, parsers.UnknownParser)
     parser: parsers.BaseParser = parser_class(url)
     if not parser.has_soup_content():
         return []
+
     recipes: list[dict] = parser.get_recipes() or []
+    if recipes:
+        get_logger().info(f'Found {len(recipes)} recipes at {url}')
+    else:
+        get_logger().warning(f'No recipes found at {url}')
+        if not isinstance(parser, parsers.UnknownParser):
+            parser.dump_unprocessed_data()
     return recipes
 
 
@@ -40,21 +61,7 @@ def save_recipes(recipes: list[dict]) -> None:
 
 
 def get_recipe_unique_id(recipe: dict) -> str:
-    return f'{recipe.get('recipe_name','').replace(' ', '_')}||{recipe.get('url','')}'
-
-
-def dump_unprocessed_data(url: str):
-    parser: parsers.BaseParser = parsers.BaseParser(url)
-    if not parser.has_soup_content():
-        return
-    script_jsons: list[dict | list] = parser._get_script_jsons()
-    url_name = url.replace('https://', '').replace('http://', '').replace('/', '_')
-    root_path = 'recipes/output/unprocessed'
-    os.makedirs(root_path, exist_ok=True)
-    with open(f'{root_path}/{url_name}.json', 'w', encoding='utf-8') as file:
-        json.dump(script_jsons, file, indent=4)
-    with open(f'{root_path}/{url_name}.html', 'w', encoding='utf-8') as file:
-        file.write(parser.soup.prettify())
+    return f'{recipe.get('recipe_name', '').replace(' ', '_')}||{recipe.get('url', '')}'
 
 
 def process_recipe_emails(email_bodies: list[str]) -> None:
@@ -65,11 +72,7 @@ def process_recipe_emails(email_bodies: list[str]) -> None:
     get_logger().info(f'Recipe url queue size: {len(urls)}')
     for url in urls:
         recipes: list[dict] = get_recipes_from_url(url)
-        if recipes:
-            get_logger().info(f'Found {len(recipes)} recipes at {url}')
-        else:
-            get_logger().warning(f'No recipes found at {url}')
-            dump_unprocessed_data(url)
+        if not recipes:
             continue
 
         duplicate_recipes: list[dict] = []
@@ -84,8 +87,8 @@ def process_recipe_emails(email_bodies: list[str]) -> None:
                 new_recipes.append(recipe)
 
         if len(duplicate_recipes) > 0:
-            get_logger().warning(f'Found {len(duplicate_recipes)} duplicate recipes at {url} ; ' +
-                        f'Duplicates are not included in the output.')
+            get_logger().warning(f'Found {len(duplicate_recipes)} duplicate recipes at {url}\n'
+                                 f'Duplicates are not included in the output.')
 
         all_recipes.extend(new_recipes)
         save_recipes(all_recipes)

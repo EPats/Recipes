@@ -65,10 +65,12 @@ def download_image(url: str, recipe_name: str, source: str) -> str | None:
 
         image_name: str
         if recipe_name:
-            image_ext: str = Path(url).suffix.split('?')[0]
+            image_ext: str = Path(url).suffix.split('?')[0] or '.jpg'
             image_name = f"{recipe_name}{image_ext}"
         else:
             image_name = url.split('/')[-1]
+            if '.' not in image_name:
+                image_name += '.jpg'
 
         image_name = re.sub(r'[?:/\\*"<>|]', '', image_name)
 
@@ -98,9 +100,6 @@ class BaseParser:
     def __init__(self, url: str):
         self.url: str = url
         self.soup: BeautifulSoup | None = web_requests.get_page(url)
-
-    def _get_default_source(self) -> str:
-        return 'Unknown Source'
 
     def has_soup_content(self) -> bool:
         return self.soup is not None and bool(self.soup.contents)
@@ -135,7 +134,9 @@ class BaseParser:
     def _get_page_data(self, json_objs: list[dict | list]) -> dict:
         return next(
             (obj for obj in json_objs
-             if isinstance(obj, dict) and obj.get('@type') in {'Article', 'NewsArticle'}), {}
+             if isinstance(obj, dict)
+             and isinstance(obj.get('@type'), str)
+             and obj.get('@type').lower() in {'article', 'newsarticle'}), {}
         )
 
     def get_recipes(self) -> list[dict] | None:
@@ -144,7 +145,9 @@ class BaseParser:
             return None
 
         base_data = self._get_base_data(json_objs)
-        recipes_data = [json_obj for json_obj in json_objs if json_obj.get('@type') == 'Recipe' ]
+        recipes_data = [json_obj for json_obj in json_objs
+                        if isinstance(json_obj.get('@type'), str)
+                        and json_obj.get('@type').lower() == 'recipe']
 
         recipes: list[dict] = [
             self._get_single_recipe(recipe_data, base_data, json_objs)
@@ -181,10 +184,13 @@ class BaseParser:
 
     def _get_base_data(self, script_jsons: list[dict]) -> dict:
         article_obj: dict = next((json_obj for json_obj in script_jsons
-                                  if json_obj.get('@type') in {'Article', 'NewsArticle'}), {})
+                                  if isinstance(json_obj.get('@type'), str)
+                                  and json_obj.get('@type').lower() in {'article', 'newsarticle'}
+                                  ), {})
         if not article_obj:
             article_obj = next((json_obj for json_obj in script_jsons
-                                if json_obj.get('@type') == 'Recipe'), {})
+                                if isinstance(json_obj.get('@type'), str)
+                                and json_obj.get('@type').lower() == 'recipe'), {})
 
         return {
             'source': self._get_source(script_jsons),
@@ -211,12 +217,16 @@ class BaseParser:
 
     def _get_source(self, json_objs: list[dict]) -> str:
         organisation = next((json_obj for json_obj in json_objs
-                             if json_obj.get('@type') == 'Organization'), {})
-        return organisation.get('name', self._get_default_source())
+                             if isinstance(json_obj.get('@type'), str)
+                             and json_obj.get('@type').lower() == 'organization')
+                            , {})
+        return organisation.get('name', 'Unknown Source')
 
     def _get_page_author(self, json_objs: list[dict]) -> str:
         authors = [json_obj.get('name') for json_obj in json_objs
-                   if json_obj.get('@type', '') == 'Person' and json_obj.get('name')]
+                   if isinstance(json_obj.get('@type'), str)
+                   and json_obj.get('@type').lower() == 'person'
+                   and json_obj.get('name')]
         return ', '.join(authors)
 
     def _get_published_date(self, article_obj: dict) -> str:
@@ -233,8 +243,11 @@ class BaseParser:
             return blank_image
         elif isinstance(image_obj, str):
             return image_obj
-        elif isinstance(image_obj, list):
+        elif isinstance(image_obj, list) and isinstance(image_obj[0], str):
             return get_best_image_url(image_obj)
+        elif isinstance(image_obj, list) and isinstance(image_obj[0], dict) and 'url' in image_obj[0]:
+            urls = [img['url'] for img in image_obj]
+            return get_best_image_url(urls)
         elif isinstance(image_obj, dict):
             if 'url' in image_obj:
                 return image_obj['url']
@@ -284,6 +297,31 @@ class BaseParser:
     def _get_recipe_time(self, recipe_data: dict) -> str:
         return recipe_data.get('totalTime')
 
+    def dump_unprocessed_data(self):
+        base_url: str = web_requests.get_base_url(self.url)
+        root_path = f'recipes/output/unprocessed/{base_url}'
+        os.makedirs(root_path, exist_ok=True)
+
+        json_objs: list[dict | list] = self._get_first_second_level_jsons()
+        if not json_objs:
+            with open(f'{root_path}/{self.url}.html', 'w', encoding='utf-8') as file:
+                file.write(self.soup.prettify())
+            return
+
+        base_data: dict = self._get_base_data(json_objs)
+        recipes_data: list[dict] = [json_obj for json_obj in json_objs
+                                    if isinstance(json_obj.get('@type'), str)
+                                    and json_obj.get('@type').lower() == 'recipe']
+
+        with open(f'{root_path}/script_jsons.json', 'w', encoding='utf-8') as file:
+            json.dump(json_objs, file, indent=4)
+        with open(f'{root_path}/base_data.json', 'w', encoding='utf-8') as file:
+            json.dump(base_data, file, indent=4)
+        with open(f'{root_path}/recipes_data.json', 'w', encoding='utf-8') as file:
+            json.dump(recipes_data, file, indent=4)
+        with open(f'{root_path}/{self.url}.html', 'w', encoding='utf-8') as file:
+            file.write(self.soup.prettify())
+
 
 class PinchOfYumParser(BaseParser):
     def _get_recipe_image_url(self, recipe_data: dict, script_jsons: list[dict]) -> str:
@@ -291,5 +329,59 @@ class PinchOfYumParser(BaseParser):
 
     def _get_source(self, json_objs: list[dict]) -> str:
         website = next((json_obj for json_obj in json_objs
-                        if json_obj.get('@type') == 'WebSite'), {})
-        return website.get('name', self._get_default_source())
+                        if (isinstance(json_obj.get('@type'), str)
+                            and json_obj.get('@type').lower() == 'website')
+                            ), {})
+        return website.get('name', 'Unknown Source')
+
+
+class JamieOliverParser(BaseParser):
+    def _get_source(self, json_objs: list[dict]) -> str:
+        return 'Jamie Oliver'
+
+    def _get_title(self, article_obj: dict) -> str:
+        return article_obj.get('name', '')
+
+
+class WaitroseParser(BaseParser):
+    def _get_source(self, json_objs: list[dict]) -> str:
+        return 'Waitrose'
+
+    def _get_title(self, article_obj: dict) -> str:
+        return article_obj.get('name', '')
+
+    def _get_recipe_author(self, recipe_data: dict) -> str:
+        return 'Waitrose'
+
+    def _get_recipe_image_url(self, recipe_data: dict, script_jsons: list[dict]) -> str:
+        page_images = self.soup.find_all('img')
+        image_element = next((img for img in page_images
+                          if img.get('alt','').lower() == recipe_data.get('name','').lower()),
+                         '')
+        image_address = image_element.get('src', '')
+        if '.' in image_address:
+            image_address = f'{image_address.split('.')[0]}&wid=992.{image_address.split('.')[1]}'
+        else:
+            image_address = f'{image_address}&wid=992'
+        return image_address
+
+
+class UnknownParser(BaseParser):
+    def get_recipes(self) -> list[dict] | None:
+        json_objs: list[dict | list] = self._get_first_second_level_jsons()
+        if not json_objs:
+            get_logger().error(f'No JSON objects found at {self.url}')
+            return None
+
+        base_data: dict = self._get_base_data(json_objs)
+        recipes_data: list[dict] = [json_obj for json_obj in json_objs
+                        if isinstance(json_obj.get('@type'), str)
+                        and json_obj.get('@type').lower() == 'recipe']
+
+        recipes: list[dict] = [
+            self._get_single_recipe(recipe_data, base_data, json_objs)
+            for recipe_data in recipes_data
+        ]
+
+        self.dump_unprocessed_data()
+        return recipes
