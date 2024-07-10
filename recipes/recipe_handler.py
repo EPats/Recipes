@@ -9,7 +9,7 @@ import web_requests
 from logger import get_logger
 
 import recipes.recipe_parsers as parsers
-
+from recipes import recipe_parsers
 
 known_sites: list[str] = [
     'theguardian.com',
@@ -17,15 +17,23 @@ known_sites: list[str] = [
     'bbcgoodfood.com',
     'loveandlemons.com',
     'realfood.tesco.com',
-    'sainsbury.co.uk'
+    'sainsbury.co.uk',
+    'recipetineats.com'
 ]
+
+
+archive_sites: list[str] = [
+    'telegraph.co.uk',
+    'thetimes.co.uk'
+    ]
 
 
 parser_classes: dict[str, Type[parsers.BaseParser]] = {
     **{site: parsers.BaseParser for site in known_sites},
     'pinchofyum.com': parsers.PinchOfYumParser,
     'waitrose.com': parsers.WaitroseParser,
-    'jamieoliver.com': parsers.JamieOliverParser
+    'jamieoliver.com': parsers.JamieOliverParser,
+    'kingarthurbaking.com': parsers.KingArthurBakingParser
 
 }
 
@@ -33,7 +41,7 @@ parser_classes: dict[str, Type[parsers.BaseParser]] = {
 def get_recipes_from_url(url: str) -> list[dict]:
     base_url: str = web_requests.get_base_url(url)
     parser_class: Type[parsers.BaseParser] = parser_classes.get(base_url, parsers.UnknownParser)
-    parser: parsers.BaseParser = parser_class(url)
+    parser: parsers.BaseParser = parser_class(url, base_url in archive_sites)
     if not parser.has_soup_content():
         return []
 
@@ -41,7 +49,7 @@ def get_recipes_from_url(url: str) -> list[dict]:
     if recipes:
         get_logger().info(f'Found {len(recipes)} recipes at {url}')
         if isinstance(parser, parsers.UnknownParser):
-            base_url: str = web_requests.get_base_url(parser.url)
+            base_url: str = web_requests.get_base_url(parser.url.replace(recipe_parsers.archive_prefix, ''))
             best_guess_name = parser.get_best_guess_name()
             root_path = f'recipes/output/unprocessed/{base_url}'
             os.makedirs(root_path, exist_ok=True)

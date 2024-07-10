@@ -62,16 +62,15 @@ def get_page(url: str, retries: int = 3) -> BeautifulSoup | None:
         try:
             # Navigate to Google first
             driver.get("https://www.google.com")
-            time.sleep(2)  # Wait for a bit
+            time.sleep(0.4)  # Wait for a bit
 
             # Now navigate to the actual URL
             driver.get(url)
-            time.sleep(5)  # Wait for the page to load
+            WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+            time.sleep(0.2)
 
             # Scroll down the page
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(2)  # Wait after scrolling
-
             WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
 
             page_source = driver.page_source

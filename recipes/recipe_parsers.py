@@ -9,6 +9,9 @@ from logger import get_logger
 from urllib.parse import urlparse, parse_qs
 
 
+archive_prefix: str = 'https://webcache.googleusercontent.com/search?q=cache:'
+
+
 def get_best_image_url(urls: list[str]) -> str:
     def get_image_width(url):
         parsed = urlparse(url)
@@ -20,6 +23,7 @@ def get_best_image_url(urls: list[str]) -> str:
     best_url: str = max(urls, key=get_image_width)
 
     return best_url
+
 
 def _is_valid_json(string: str) -> bool:
     try:
@@ -97,8 +101,10 @@ def download_image(url: str, recipe_name: str, source: str) -> str | None:
 
 
 class BaseParser:
-    def __init__(self, url: str):
-        self.url: str = url
+    def __init__(self, url: str, use_archive: bool = False):
+        global archive_prefix
+        self.use_archive: bool = use_archive
+        self.url: str = f'{archive_prefix}{url}' if use_archive else url
         self.soup: BeautifulSoup | None = web_requests.get_page(url)
 
     def has_soup_content(self) -> bool:
@@ -145,9 +151,13 @@ class BaseParser:
             return None
 
         base_data = self._get_base_data(json_objs)
-        recipes_data = [json_obj for json_obj in json_objs
-                        if isinstance(json_obj.get('@type'), str)
-                        and json_obj.get('@type').lower() == 'recipe']
+        recipes_data = [
+            json_obj for json_obj in json_objs
+            if (isinstance(json_obj.get('@type'), str)
+                and json_obj.get('@type').lower() == 'recipe')
+               or (isinstance(json_obj.get('@type'), list)
+                   and 'recipe' in [item.lower() for item in json_obj.get('@type')])
+        ]
 
         recipes: list[dict] = [
             self._get_single_recipe(recipe_data, base_data, json_objs)
@@ -305,7 +315,7 @@ class BaseParser:
         return best_guess_name
 
     def dump_unprocessed_data(self):
-        base_url: str = web_requests.get_base_url(self.url)
+        base_url: str = web_requests.get_base_url(self.url.replace(archive_prefix, ''))
         best_guess_name = self.get_best_guess_name()
 
         root_path = f'recipes/output/unprocessed/{base_url}'
@@ -340,7 +350,7 @@ class PinchOfYumParser(BaseParser):
         website = next((json_obj for json_obj in json_objs
                         if (isinstance(json_obj.get('@type'), str)
                             and json_obj.get('@type').lower() == 'website')
-                            ), {})
+                        ), {})
         return website.get('name', 'Unknown Source')
 
 
@@ -365,7 +375,7 @@ class WaitroseParser(BaseParser):
     def _get_recipe_image_url(self, recipe_data: dict, script_jsons: list[dict]) -> str:
         page_images = self.soup.find_all('img')
         image_element = next((img for img in page_images
-                              if img.get('alt','').lower() == recipe_data.get('name','').lower()),
+                              if img.get('alt', '').lower() == recipe_data.get('name', '').lower()),
                              '')
         image_address = image_element.get('src', '')
         if '.' in image_address.split('/')[-1]:
@@ -373,6 +383,14 @@ class WaitroseParser(BaseParser):
         else:
             image_address = f'{image_address}&wid=992'
         return image_address
+
+
+class KingArthurBakingParser(BaseParser):
+    def _get_source(self, json_objs: list[dict]) -> str:
+        return 'King Arthur Baking'
+
+    def _get_title(self, article_obj: dict) -> str:
+        return article_obj.get('name', '')
 
 
 class UnknownParser(BaseParser):
@@ -384,8 +402,8 @@ class UnknownParser(BaseParser):
 
         base_data: dict = self._get_base_data(json_objs)
         recipes_data: list[dict] = [json_obj for json_obj in json_objs
-                        if isinstance(json_obj.get('@type'), str)
-                        and json_obj.get('@type').lower() == 'recipe']
+                                    if isinstance(json_obj.get('@type'), str)
+                                    and json_obj.get('@type').lower() == 'recipe']
 
         recipes: list[dict] = [
             self._get_single_recipe(recipe_data, base_data, json_objs)
