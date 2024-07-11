@@ -9,7 +9,6 @@ import web_requests
 from logger import get_logger
 
 import recipes.recipe_parsers as parsers
-from recipes import recipe_parsers
 
 known_sites: list[str] = [
     'theguardian.com',
@@ -18,7 +17,8 @@ known_sites: list[str] = [
     'loveandlemons.com',
     'realfood.tesco.com',
     'sainsbury.co.uk',
-    'recipetineats.com'
+    'recipetineats.com',
+    'eatingwell.com'
 ]
 
 
@@ -49,7 +49,7 @@ def get_recipes_from_url(url: str) -> list[dict]:
     if recipes:
         get_logger().info(f'Found {len(recipes)} recipes at {url}')
         if isinstance(parser, parsers.UnknownParser):
-            base_url: str = web_requests.get_base_url(parser.url.replace(recipe_parsers.archive_prefix, ''))
+            base_url: str = web_requests.get_base_url(parser.url)
             best_guess_name = parser.get_best_guess_name()
             root_path = f'recipes/output/unprocessed/{base_url}'
             os.makedirs(root_path, exist_ok=True)
@@ -83,11 +83,16 @@ def get_recipe_unique_id(recipe: dict) -> str:
 
 def process_recipe_emails(email_bodies: list[str]) -> None:
     all_recipes: list[dict] = load_existing_recipes()
+    existing_urls: set[str] = {recipe.get('url', '') for recipe in all_recipes}
     unique_recipe_identifiers: set[str] = {get_recipe_unique_id(recipe) for recipe in all_recipes}
 
     urls: list[str] = email_handler.get_urls(email_bodies)
     get_logger().info(f'Recipe url queue size: {len(urls)}')
     for url in urls:
+        if url in existing_urls:
+            get_logger().info(f'URL already in output: {url}')
+            continue
+
         recipes: list[dict] = get_recipes_from_url(url)
         if not recipes:
             continue

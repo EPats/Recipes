@@ -1,4 +1,6 @@
 import time
+
+import waybackpy
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
@@ -6,6 +8,8 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException, WebDriverException
 from bs4 import BeautifulSoup
+from waybackpy.exceptions import NoCDXRecordFound, TooManyRequestsError
+
 from logger import get_logger
 import atexit
 import re
@@ -52,10 +56,40 @@ def set_chrome_options() -> Options:
     return chrome_options
 
 
+user_agent: str = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.53 Safari/537.36'
+
+
+def get_archive_url(url: str):
+    global user_agent
+    cdx_api = waybackpy.WaybackMachineCDXServerAPI(url, user_agent)
+    try:
+        newest = cdx_api.newest()
+        return newest.archive_url
+    except NoCDXRecordFound:
+        return save_archive(url)
+
+
+def save_archive(url: str, tries: int = 0) -> str:
+    global user_agent
+    try:
+        save_api = waybackpy.WaybackMachineSaveAPI(url, user_agent)
+        return save_api.save()
+    except TooManyRequestsError:
+        get_logger().warning(f'Rate limited while saving {url} to Wayback Machine')
+        if tries < 3:
+            time.sleep(360)
+            return save_archive(url, tries + 1)
+        return ''
+
+
 def get_page(url: str, retries: int = 3) -> BeautifulSoup | None:
+    if not url:
+        return None
+
     global driver
-    driver = webdriver.Chrome(options=set_chrome_options())
-    driver.execute_cdp_cmd('Network.setUserAgentOverride', {
+    if not driver:
+        driver = webdriver.Chrome(options=set_chrome_options())
+        driver.execute_cdp_cmd('Network.setUserAgentOverride', {
         "userAgent": 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.53 Safari/537.36'})
 
     for attempt in range(retries):
@@ -85,9 +119,6 @@ def get_page(url: str, retries: int = 3) -> BeautifulSoup | None:
         finally:
             if attempt + 1 == retries:
                 get_logger().error(f'Failed to fetch {url} after {retries} attempts')
-                close_driver()
                 return None
-            close_driver()
 
-    close_driver()
     return None

@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 
 import arr_handler
 import email_handler
+import web_requests
 from recipes import recipe_handler
 from logger import init_logger, get_logger
 
@@ -112,13 +113,14 @@ https://www.loveandlemons.com/french-onion-soup/'''
 
     urls = email_handler.get_urls([txt])
 
-    # urls = ['https://www.theguardian.com/food/2023/dec/02/yotam-ottolenghi-vegetarian-christmas-recipes-rice-pie-sticky-sprouts-and-yoghurty-beans?CMP=share_btn_url']
-    # urls = ['https://www.loveandlemons.com/french-onion-soup/']
+    # urls = ['https://www.eatingwell.com/crispy-salmon-bites-with-creamy-sun-dried-tomato-dipping-sauce-8663055']
 
     queues = {'Recipes': urls}
     process_emails(queues)
-
-
+    # url = 'https://github.com/akamhy/waybackpy/issues/97'
+    # arch_url = web_requests.get_archive_url('https://www.elliottpaterson.com')
+    # arch_url = web_requests.save_archive(url)
+    # print(arch_url)
 
 if __name__ == '__main__':
     setup()

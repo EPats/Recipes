@@ -9,9 +9,6 @@ from logger import get_logger
 from urllib.parse import urlparse, parse_qs
 
 
-archive_prefix: str = 'https://webcache.googleusercontent.com/search?q=cache:'
-
-
 def get_best_image_url(urls: list[str]) -> str:
     def get_image_width(url):
         parsed = urlparse(url)
@@ -102,10 +99,10 @@ def download_image(url: str, recipe_name: str, source: str) -> str | None:
 
 class BaseParser:
     def __init__(self, url: str, use_archive: bool = False):
-        global archive_prefix
-        self.use_archive: bool = use_archive
-        self.url: str = f'{archive_prefix}{url}' if use_archive else url
-        self.soup: BeautifulSoup | None = web_requests.get_page(url)
+        self.uses_archive: bool = use_archive
+        self.url = url
+        self.request_url: str = web_requests.get_archive_url(url) if use_archive else url
+        self.soup: BeautifulSoup | None = web_requests.get_page(self.request_url)
 
     def has_soup_content(self) -> bool:
         return self.soup is not None and bool(self.soup.contents)
@@ -137,13 +134,20 @@ class BaseParser:
 
         return jsons
 
+    def json_match_condition(self, json_key: str, key_match: set[str], json_obj: dict) -> bool:
+       return ((isinstance(json_obj.get(json_key), str)
+                and json_obj.get(json_key).lower() in key_match)
+               or (isinstance(json_obj.get(json_key), list)
+                   and (key_match & {item.lower() for item in json_obj.get(json_key)})))
+
+    def get_first_json_as_match(self, json_key: str, key_match: set[str], json_objs: list[dict | list]) -> dict:
+        return next((json_obj for json_obj in json_objs
+              if self.json_match_condition(json_key, key_match, json_obj)), {})
+    def get_first_recipe_json(self, json_objs: list[dict | list]) -> dict:
+        return self.get_first_json_as_match('@type', {'recipe'}, json_objs)
+
     def _get_page_data(self, json_objs: list[dict | list]) -> dict:
-        return next(
-            (obj for obj in json_objs
-             if isinstance(obj, dict)
-             and isinstance(obj.get('@type'), str)
-             and obj.get('@type').lower() in {'article', 'newsarticle'}), {}
-        )
+        return self.get_first_json_as_match('@type', {'article', 'newsarticle'}, json_objs)
 
     def get_recipes(self) -> list[dict] | None:
         json_objs: list[dict | list] = self._get_first_second_level_jsons()
@@ -153,10 +157,7 @@ class BaseParser:
         base_data = self._get_base_data(json_objs)
         recipes_data = [
             json_obj for json_obj in json_objs
-            if (isinstance(json_obj.get('@type'), str)
-                and json_obj.get('@type').lower() == 'recipe')
-               or (isinstance(json_obj.get('@type'), list)
-                   and 'recipe' in [item.lower() for item in json_obj.get('@type')])
+            if self.json_match_condition('@type', {'recipe'}, json_obj)
         ]
 
         recipes: list[dict] = [
@@ -193,14 +194,10 @@ class BaseParser:
         return merged
 
     def _get_base_data(self, script_jsons: list[dict]) -> dict:
-        article_obj: dict = next((json_obj for json_obj in script_jsons
-                                  if isinstance(json_obj.get('@type'), str)
-                                  and json_obj.get('@type').lower() in {'article', 'newsarticle'}
-                                  ), {})
+        article_obj: dict = self.get_first_json_as_match('@type', {'article', 'newsarticle'}, script_jsons)
+
         if not article_obj:
-            article_obj = next((json_obj for json_obj in script_jsons
-                                if isinstance(json_obj.get('@type'), str)
-                                and json_obj.get('@type').lower() == 'recipe'), {})
+            article_obj = self.get_first_recipe_json(script_jsons)
 
         return {
             'source': self._get_source(script_jsons),
@@ -226,16 +223,14 @@ class BaseParser:
         }
 
     def _get_source(self, json_objs: list[dict]) -> str:
-        organisation = next((json_obj for json_obj in json_objs
-                             if isinstance(json_obj.get('@type'), str)
-                             and json_obj.get('@type').lower() == 'organization')
-                            , {})
+        organisation = self.get_first_json_as_match('@type', {'organization'}, json_objs)
         return organisation.get('name', 'Unknown Source')
 
     def _get_page_author(self, json_objs: list[dict]) -> str:
         authors = [json_obj.get('name') for json_obj in json_objs
-                   if isinstance(json_obj.get('@type'), str)
-                   and json_obj.get('@type').lower() == 'person'
+                   if self.json_match_condition('@type', {'person'}, json_obj)
+        # isinstance(json_obj.get('@type'), str)
+        #            and json_obj.get('@type').lower() == 'person'
                    and json_obj.get('name')]
         return ', '.join(authors)
 
@@ -315,7 +310,7 @@ class BaseParser:
         return best_guess_name
 
     def dump_unprocessed_data(self):
-        base_url: str = web_requests.get_base_url(self.url.replace(archive_prefix, ''))
+        base_url: str = web_requests.get_base_url(self.url)
         best_guess_name = self.get_best_guess_name()
 
         root_path = f'recipes/output/unprocessed/{base_url}'
@@ -329,8 +324,7 @@ class BaseParser:
 
         base_data: dict = self._get_base_data(json_objs)
         recipes_data: list[dict] = [json_obj for json_obj in json_objs
-                                    if isinstance(json_obj.get('@type'), str)
-                                    and json_obj.get('@type').lower() == 'recipe']
+                                    if self.json_match_condition('@type', {'recipe'}, json_obj)]
 
         with open(f'{root_path}/{best_guess_name}_script_jsons.json', 'w', encoding='utf-8') as file:
             json.dump(json_objs, file, indent=4)
@@ -347,10 +341,7 @@ class PinchOfYumParser(BaseParser):
         return ''
 
     def _get_source(self, json_objs: list[dict]) -> str:
-        website = next((json_obj for json_obj in json_objs
-                        if (isinstance(json_obj.get('@type'), str)
-                            and json_obj.get('@type').lower() == 'website')
-                        ), {})
+        website = self.get_first_json_as_match('@type', {'website'}, json_objs)
         return website.get('name', 'Unknown Source')
 
 
@@ -402,8 +393,7 @@ class UnknownParser(BaseParser):
 
         base_data: dict = self._get_base_data(json_objs)
         recipes_data: list[dict] = [json_obj for json_obj in json_objs
-                                    if isinstance(json_obj.get('@type'), str)
-                                    and json_obj.get('@type').lower() == 'recipe']
+                                    if self.json_match_condition('@type', {'recipe'}, json_obj)]
 
         recipes: list[dict] = [
             self._get_single_recipe(recipe_data, base_data, json_objs)
