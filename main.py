@@ -104,7 +104,7 @@ https://www.theguardian.com/food/article/2024/jun/09/nigel-slaters-recipes-for-g
 
 https://www.theguardian.com/food/article/2024/may/18/ask-ottolenghi-easy-sauces-to-perk-up-midweek-meals
 https://www.theguardian.com/food/article/2024/may/15/balkan-favourites-recipes-crunchy-potatoes-fried-pepper-cream-gibanitsa-egg-cheese-filo-pie-spasia-dinkovski
-
+https://www.thetimes.com/uk/scotland/article/clare-coghills-langoustine-roll-with-nduja-butter-recipe-0v2ptmth9
 
 https://www.theguardian.com/food/article/2024/may/11/yotam-ottolenghi-five-ingredient-or-thereabouts-recipes-chicken-rice-spring-onion-broad-beans
 

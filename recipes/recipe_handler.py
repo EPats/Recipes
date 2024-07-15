@@ -33,7 +33,8 @@ parser_classes: dict[str, Type[parsers.BaseParser]] = {
     'pinchofyum.com': parsers.PinchOfYumParser,
     'waitrose.com': parsers.WaitroseParser,
     'jamieoliver.com': parsers.JamieOliverParser,
-    'kingarthurbaking.com': parsers.KingArthurBakingParser
+    'kingarthurbaking.com': parsers.KingArthurBakingParser,
+    'theguardian.com': parsers.GuardianParser
 
 }
 

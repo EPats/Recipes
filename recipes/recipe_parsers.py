@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 import re
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 import web_requests
 from logger import get_logger
 from urllib.parse import urlparse, parse_qs
@@ -154,18 +154,22 @@ class BaseParser:
         if not json_objs:
             return None
 
-        base_data = self._get_base_data(json_objs)
-        recipes_data = [
+        base_data: dict = self._get_base_data(json_objs)
+        recipes_data: list[dict] = self._get_recipes_jsons(json_objs)
+
+        return self._create_recipe_jsons(recipes_data, base_data, json_objs)
+
+    def _get_recipes_jsons(self, json_objs: list[dict | list]) -> list[dict]:
+        return [
             json_obj for json_obj in json_objs
             if self.json_match_condition('@type', {'recipe'}, json_obj)
         ]
 
-        recipes: list[dict] = [
+    def _create_recipe_jsons(self, recipes_data: list[dict], base_data: dict, json_objs: list[dict | list]) -> list[dict]:
+        return [
             self._get_single_recipe(recipe_data, base_data, json_objs)
             for recipe_data in recipes_data
         ]
-
-        return recipes
 
     def _get_single_recipe(self, recipe_data: dict, base_data: dict, json_objs: list[dict]) -> dict:
         recipe: dict = self._merge_dicts_with_author_combine(
@@ -309,22 +313,22 @@ class BaseParser:
         best_guess_name: str = '-'.join(name_parts[:index])
         return best_guess_name
 
-    def dump_unprocessed_data(self):
+    def dump_unprocessed_data(self, json_objs: list[dict | list] | None = None, base_data: dict | None = None,
+                              recipes_data: list[dict] | None = None) -> None:
         base_url: str = web_requests.get_base_url(self.url)
         best_guess_name = self.get_best_guess_name()
 
         root_path = f'recipes/output/unprocessed/{base_url}'
         os.makedirs(root_path, exist_ok=True)
 
-        json_objs: list[dict | list] = self._get_first_second_level_jsons()
+        json_objs = json_objs or self._get_first_second_level_jsons()
         if not json_objs:
             with open(f'{root_path}/{best_guess_name}.html', 'w', encoding='utf-8') as file:
                 file.write(self.soup.prettify())
             return
 
-        base_data: dict = self._get_base_data(json_objs)
-        recipes_data: list[dict] = [json_obj for json_obj in json_objs
-                                    if self.json_match_condition('@type', {'recipe'}, json_obj)]
+        base_data = base_data or self._get_base_data(json_objs)
+        recipes_data = recipes_data or self._get_recipes_jsons(json_objs)
 
         with open(f'{root_path}/{best_guess_name}_script_jsons.json', 'w', encoding='utf-8') as file:
             json.dump(json_objs, file, indent=4)
@@ -384,21 +388,30 @@ class KingArthurBakingParser(BaseParser):
         return article_obj.get('name', '')
 
 
-class UnknownParser(BaseParser):
+class GuardianParser(BaseParser):
     def get_recipes(self) -> list[dict] | None:
         json_objs: list[dict | list] = self._get_first_second_level_jsons()
         if not json_objs:
-            get_logger().error(f'No JSON objects found at {self.url}')
             return None
 
-        base_data: dict = self._get_base_data(json_objs)
-        recipes_data: list[dict] = [json_obj for json_obj in json_objs
-                                    if self.json_match_condition('@type', {'recipe'}, json_obj)]
+        base_data = self._get_base_data(json_objs)
+        recipes_data: list[dict] = self._get_recipes_jsons(json_objs)
+        recipes: list[dict] = self._create_recipe_jsons(recipes_data, base_data, json_objs)
 
-        recipes: list[dict] = [
-            self._get_single_recipe(recipe_data, base_data, json_objs)
-            for recipe_data in recipes_data
-        ]
+        if recipes:
+            return recipes
 
+        body: Tag | None = self.soup.find('div', {'class': re.compile('^article-body')})
+        p_and_h2_elements: list[Tag] = body.find_all(['h2', 'p'])
+        text_element: Tag
+        # for text_element in p_and_h2_elements:
+        #     print(f'{text_element=}')
+
+        return recipes
+
+
+class UnknownParser(BaseParser):
+    def get_recipes(self) -> list[dict] | None:
+        recipes: list[dict] = super().get_recipes()
         self.dump_unprocessed_data()
         return recipes
