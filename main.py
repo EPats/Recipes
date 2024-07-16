@@ -73,7 +73,9 @@ def setup() -> None:
 
 
 def testing():
-    txt = '''https://www.independent.co.uk/life-style/food-and-drink/tom-kerridge-recipes-pub-kitchen-cookbook-b2423595.html
+    txt = '''
+    https://www.thetimes.com/life-style/food-drink/article/chilled-summer-soup-recipes-sc22x76mx
+    https://www.independent.co.uk/life-style/food-and-drink/tom-kerridge-recipes-pub-kitchen-cookbook-b2423595.html
 https://www.kingarthurbaking.com/recipes/cakey-brownies-recipe
 
 https://www.theguardian.com/food/2023/oct/17/nigel-slaters-recipe-for-mushroom-ragout

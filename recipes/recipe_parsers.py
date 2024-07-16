@@ -122,6 +122,12 @@ class BaseParser:
                     result.extend(parsed)
                 else:
                     result.append(parsed)
+            elif _is_valid_json(emb_tag:= script_tag.string[4:-3]):
+                parsed = json.loads(emb_tag)
+                if isinstance(parsed, list):
+                    result.extend(parsed)
+                else:
+                    result.append(parsed)
         return [item for item in result if isinstance(item, dict)]
 
     def _get_first_second_level_jsons(self) -> list[dict]:

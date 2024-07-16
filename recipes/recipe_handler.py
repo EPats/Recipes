@@ -24,7 +24,8 @@ known_sites: list[str] = [
 
 archive_sites: list[str] = [
     'telegraph.co.uk',
-    'thetimes.co.uk'
+    'thetimes.co.uk',
+    'thetimes.com'
     ]
 
 
